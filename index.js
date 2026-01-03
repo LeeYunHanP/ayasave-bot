@@ -117,7 +117,9 @@ client.on("interactionCreate", async interaction => {
       const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "progress-logs");
       if (logChannel) await logChannel.send({ embeds: [embed] });
 
-      return interaction.editReply("✅ Stats updated successfully.");
+      return interaction.editReply(
+        `✅ **Stats updated successfully.** Thank you **${interaction.user.username}**!\n🎟️ You are now eligible to join the raffle on **January 9**.`
+      );
     }
 
     await interaction.editReply("❌ Failed to update Google Sheet.");
