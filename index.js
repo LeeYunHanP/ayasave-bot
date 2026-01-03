@@ -1,16 +1,35 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const axios = require("axios");
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
 
+/* ---------- SLASH COMMAND ---------- */
 const command = new SlashCommandBuilder()
   .setName("updatestat")
   .setDescription("Update Ymir Member Stats")
-  .addStringOption(o => o.setName("ign").setDescription("In game name (case-sensitive)").setRequired(true))
-  .addIntegerOption(o => o.setName("gr").setDescription("Gear Rating").setRequired(true))
-  .addIntegerOption(o => o.setName("level").setDescription("Level").setRequired(true))
-  .addIntegerOption(o => o.setName("gd").setDescription("Guild Donation").setRequired(true))
+  .addStringOption(o =>
+    o.setName("ign")
+      .setDescription("In game name (CASE-SENSITIVE)")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("gr")
+      .setDescription("Gear Rating")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("level")
+      .setDescription("Level")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("gd")
+      .setDescription("Guild Donation")
+      .setRequired(true)
+  )
   .addStringOption(o =>
     o.setName("class")
       .setDescription("Class")
@@ -19,25 +38,29 @@ const command = new SlashCommandBuilder()
         { name: "Warlord", value: "Warlord" },
         { name: "Berserker", value: "Berserker" },
         { name: "Skald", value: "Skald" },
-        { name: "Archer", value: "Archer" }
+        { name: "Archer", value: "Archer" },
+        { name: "Volva", value: "Volva" }
       )
   );
 
+/* ---------- BOT READY ---------- */
 client.once("ready", async () => {
-  const guild = await client.guilds.fetch("1227614196456488991");
-  await guild.commands.create(command);
-  console.log("Ymir Bot Ready");
+  await client.application.commands.create(command);
+  console.log("🔥 AYASAVEmir Bot is Online");
 });
 
+/* ---------- COMMAND HANDLER ---------- */
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName !== "updatestat") return;
 
-  await interaction.deferReply({ ephemeral: false });
+  await interaction.deferReply();
 
   try {
     const payload = {
-      ign: interaction.options.getString("ign"), // EXACT CASE
+      guildId: interaction.guild.id,
+      userId: interaction.user.id,
+      ign: interaction.options.getString("ign"),
       gr: interaction.options.getInteger("gr"),
       level: interaction.options.getInteger("level"),
       gd: interaction.options.getInteger("gd"),
@@ -51,17 +74,45 @@ client.on("interactionCreate", async interaction => {
     const result = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
 
     if (result.status === "not_found") {
-      return interaction.editReply("❌ This user does not exist. Please check the IGN spelling and case.");
+      return interaction.editReply("❌ IGN not found. Please check spelling and **case sensitivity**.");
     }
 
     if (result.status === "updated") {
-      return interaction.editReply("✅ Thank you for updating your details.");
+
+      const time = new Date().toLocaleString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor("#00ff9c")
+        .setTitle("📈 Ymir Progress Update")
+        .addFields(
+          { name: "Player", value: payload.ign, inline: true },
+          { name: "Class", value: payload.class, inline: true },
+          { name: "GR", value: payload.gr.toString(), inline: true },
+          { name: "Level", value: payload.level.toString(), inline: true },
+          { name: "Guild Donation", value: payload.gd.toString(), inline: true },
+          { name: "Time", value: time, inline: true }
+        )
+        .setFooter({ text: `Updated by ${interaction.user.username}` });
+
+      const logChannel = interaction.guild.channels.cache.find(
+        ch => ch.name === "progress-logs"
+      );
+
+      if (logChannel) {
+        await logChannel.send({ embeds: [embed] });
+      }
+
+      return interaction.editReply("✅ Your stats have been updated successfully!");
     }
 
     await interaction.editReply("❌ Failed to update Google Sheet.");
   } catch (err) {
     console.error(err);
-    await interaction.editReply("❌ Failed to update Google Sheet.");
+    await interaction.editReply("❌ System error. Please contact your GL / DGM.");
   }
 });
 
