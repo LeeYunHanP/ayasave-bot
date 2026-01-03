@@ -1,70 +1,118 @@
-function doPost(e) {
+require("dotenv").config();
+const { Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const axios = require("axios");
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+/* ---------- SLASH COMMAND ---------- */
+const command = new SlashCommandBuilder()
+  .setName("updatestat")
+  .setDescription("Update Ymir Member Stats")
+  .addStringOption(o =>
+    o.setName("ign")
+      .setDescription("In game name (CASE-SENSITIVE)")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("gr")
+      .setDescription("Gear Rating")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("level")
+      .setDescription("Level")
+      .setRequired(true)
+  )
+  .addIntegerOption(o =>
+    o.setName("gd")
+      .setDescription("Guild Donation")
+      .setRequired(true)
+  )
+  .addStringOption(o =>
+    o.setName("class")
+      .setDescription("Class")
+      .setRequired(true)
+      .addChoices(
+        { name: "Warlord", value: "Warlord" },
+        { name: "Berserker", value: "Berserker" },
+        { name: "Skald", value: "Skald" },
+        { name: "Archer", value: "Archer" },
+        { name: "Volva", value: "Volva" }
+      )
+  );
+
+/* ---------- BOT READY ---------- */
+client.once("ready", async () => {
+
+  // ⚠️ TEMPORARY: CLEAR OLD COMMAND CACHE
+  await client.application.commands.set([]);
+  console.log("🧹 Cleared old slash commands");
+
+  // REGISTER NEW COMMAND WITH VOLVA
+  await client.application.commands.create(command);
+  console.log("🔥 AYASAVEmir Bot reloaded with Volva class");
+});
+
+/* ---------- COMMAND HANDLER ---------- */
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName !== "updatestat") return;
+
+  await interaction.deferReply({ ephemeral: true });
+
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("RAW DATA");
-    const data = JSON.parse(e.postData.contents);
+    const payload = {
+      ign: interaction.options.getString("ign"),
+      gr: interaction.options.getInteger("gr"),
+      level: interaction.options.getInteger("level"),
+      gd: interaction.options.getInteger("gd"),
+      class: interaction.options.getString("class")
+    };
 
-    const ign = String(data.ign || "").trim();
-    const gr = data.gr;
-    const lvl = data.level;
-    const gd = data.gd;
-    const playerClass = data.class;
+    const res = await axios.post(process.env.SHEET_URL, payload, {
+      headers: { "Content-Type": "application/json" }
+    });
 
-    if (!ign) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: "error", message: "IGN missing" }))
-        .setMimeType(ContentService.MimeType.JSON);
+    const result = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+
+    if (result.status === "not_found") {
+      return interaction.editReply("❌ IGN not found. Please check spelling and case.");
     }
 
-    const rows = sheet.getDataRange().getValues();
+    if (result.status === "updated") {
 
-    for (let i = 1; i < rows.length; i++) {
-      const rowIgn = String(rows[i][2] || "").trim(); // Column C
+      const time = new Date().toLocaleString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+      });
 
-      // EXACT CASE-SENSITIVE MATCH
-      if (rowIgn === ign) {
+      const embed = new EmbedBuilder()
+        .setColor("#00ff9c")
+        .setTitle("📈 Ymir Progress Update")
+        .addFields(
+          { name: "Player", value: payload.ign, inline: true },
+          { name: "Class", value: payload.class, inline: true },
+          { name: "GR", value: payload.gr.toString(), inline: true },
+          { name: "Level", value: payload.level.toString(), inline: true },
+          { name: "Guild Donation", value: payload.gd.toString(), inline: true },
+          { name: "Time", value: time, inline: true }
+        )
+        .setFooter({ text: `Updated by ${interaction.user.username}` });
 
-        const now = new Date();
-        const hour = now.getHours();
-        const isLate = hour >= 20; // 8:00 PM+
+      const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "progress-logs");
+      if (logChannel) await logChannel.send({ embeds: [embed] });
 
-        // Date → Column A
-        sheet.getRange(i + 1, 1)
-          .setValue(now)
-          .setNumberFormat("MM/dd/yyyy")
-          .setHorizontalAlignment("center");
-
-        // Time → Column B
-        sheet.getRange(i + 1, 2)
-          .setValue(now)
-          .setNumberFormat("hh:mm:ss AM/PM")
-          .setHorizontalAlignment("center")
-          .setBackground(isLate ? "#f44336" : "#4CAF50");
-
-        // GR → Column D
-        sheet.getRange(i + 1, 4).setValue(gr).setHorizontalAlignment("center");
-
-        // LVL → Column E
-        sheet.getRange(i + 1, 5).setValue(lvl).setHorizontalAlignment("center");
-
-        // Class → Column F
-        sheet.getRange(i + 1, 6).setValue(playerClass).setHorizontalAlignment("center");
-
-        // GD → Column G
-        sheet.getRange(i + 1, 7).setValue(gd).setHorizontalAlignment("center");
-
-        return ContentService
-          .createTextOutput(JSON.stringify({ status: "updated" }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
+      return interaction.editReply("✅ Your stats have been updated successfully!");
     }
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: "not_found" }))
-      .setMimeType(ContentService.MimeType.JSON);
-
+    await interaction.editReply("❌ Failed to update Google Sheet.");
   } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: "error", message: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
+    console.error(err);
+    await interaction.editReply("❌ System error. Please contact your GL / DGM.");
   }
-}
+});
+
+client.login(process.env.TOKEN);
