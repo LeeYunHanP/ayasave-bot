@@ -1,5 +1,12 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const { 
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  EmbedBuilder,
+  REST,
+  Routes
+} = require("discord.js");
 const axios = require("axios");
 
 const client = new Client({
@@ -43,16 +50,22 @@ const command = new SlashCommandBuilder()
       )
   );
 
-/* ---------- BOT READY ---------- */
+/* ---------- READY EVENT ---------- */
 client.once("ready", async () => {
+  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-  // ⚠️ TEMPORARY: CLEAR OLD COMMAND CACHE
-  await client.application.commands.set([]);
-  console.log("🧹 Cleared old slash commands");
+  try {
+    console.log("🔄 Refreshing slash command...");
 
-  // REGISTER NEW COMMAND WITH VOLVA
-  await client.application.commands.create(command);
-  console.log("🔥 AYASAVEmir Bot reloaded with Volva class");
+    await rest.put(
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
+      { body: [command.toJSON()] }
+    );
+
+    console.log("✅ Slash command refreshed. Volva is now available.");
+  } catch (err) {
+    console.error("Command refresh failed:", err);
+  }
 });
 
 /* ---------- COMMAND HANDLER ---------- */
@@ -60,7 +73,7 @@ client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName !== "updatestat") return;
 
-  await interaction.deferReply();
+  await interaction.deferReply(); // PUBLIC MESSAGE
 
   try {
     const payload = {
@@ -105,7 +118,7 @@ client.on("interactionCreate", async interaction => {
       const logChannel = interaction.guild.channels.cache.find(ch => ch.name === "progress-logs");
       if (logChannel) await logChannel.send({ embeds: [embed] });
 
-      return interaction.editReply("✅ Your stats have been updated successfully!");
+      return interaction.editReply("✅ Stats updated successfully.");
     }
 
     await interaction.editReply("❌ Failed to update Google Sheet.");
