@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { 
+const {
   Client,
   GatewayIntentBits,
   SlashCommandBuilder,
@@ -50,21 +50,21 @@ const command = new SlashCommandBuilder()
       )
   );
 
-/* ---------- READY EVENT ---------- */
+/* ---------- READY EVENT (AUTO REFRESH) ---------- */
 client.once("ready", async () => {
   const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
   try {
-    console.log("🔄 Refreshing slash command...");
+    console.log("🔁 Auto refreshing slash commands...");
 
     await rest.put(
       Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
       { body: [command.toJSON()] }
     );
 
-    console.log("✅ Slash command refreshed. Volva is now available.");
+    console.log("✅ Slash command refreshed with Volva.");
   } catch (err) {
-    console.error("Command refresh failed:", err);
+    console.error("Slash refresh error:", err);
   }
 });
 
@@ -95,7 +95,6 @@ client.on("interactionCreate", async interaction => {
     }
 
     if (result.status === "updated") {
-
       const time = new Date().toLocaleString("en-US", {
         hour: "numeric",
         minute: "2-digit",
