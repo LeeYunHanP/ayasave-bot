@@ -118,8 +118,8 @@ client.on("interactionCreate", async interaction => {
       if (logChannel) await logChannel.send({ embeds: [embed] });
 
       return interaction.editReply(
-        `✅ **Stats updated successfully.** Thank you **${interaction.user.username}**!\n🎟️ You are now eligible to join the raffle on **January 9**.`
-      );
+  `✅ **Status updated successfully!** 🎉\nThanks, **${interaction.user.username}** — happy gaming! 🎮`
+);
     }
 
     await interaction.editReply("❌ Failed to update Google Sheet.");
